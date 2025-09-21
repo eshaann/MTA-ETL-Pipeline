@@ -1,0 +1,24 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    container_name: mta_postgres
+    environment:
+      POSTGRES_USER: mta_user
+      POSTGRES_PASSWORD: mta_pass
+      POSTGRES_DB: mta_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+  etl:
+    build: .
+    depends_on:
+      - db
+    environment:
+      POSTGRES_USER: mta_user
+      POSTGRES_PASSWORD: mta_pass
+      POSTGRES_DB: mta_db
+      POSTGRES_HOST: db   # <- must match DB_CONFIG host
+      POSTGRES_PORT: 5432
+

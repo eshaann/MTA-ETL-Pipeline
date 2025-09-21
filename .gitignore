@@ -1,0 +1,4 @@
+pgdata/
+*.pyc
+__pycache__/
+mtaVenv/
