@@ -34,10 +34,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      # Install ETL dependencies for tests
+      - name: Install ETL dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-etl.txt
 
       - name: Run Pytest
         env:
@@ -48,3 +49,9 @@ jobs:
           DB_PORT: 5432
         run: |
           pytest -v tests/
+
+      # Build Docker images (optional)
+      - name: Build Docker images
+        run: |
+          docker build -f Dockerfile.etl -t mtaetlpipeline-etl .
+          docker build -f Dockerfile.dashboard -t mtaetlpipeline-dashboard .

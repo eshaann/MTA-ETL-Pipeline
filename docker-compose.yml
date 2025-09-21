@@ -1,4 +1,5 @@
 version: '3.8'
+
 services:
   db:
     image: postgres:15
@@ -11,14 +12,34 @@ services:
       - "5432:5432"
     volumes:
       - ./pgdata:/var/lib/postgresql/data
+
   etl:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.etl
     depends_on:
       - db
     environment:
       POSTGRES_USER: mta_user
       POSTGRES_PASSWORD: mta_pass
       POSTGRES_DB: mta_db
-      POSTGRES_HOST: db   # <- must match DB_CONFIG host
+      POSTGRES_HOST: db
       POSTGRES_PORT: 5432
 
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    depends_on:
+      - db
+    environment:
+      POSTGRES_USER: mta_user
+      POSTGRES_PASSWORD: mta_pass
+      POSTGRES_DB: mta_db
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./dashboard.py:/app/dashboard.py   # Mount your local dashboard.py
+      - ./requirements-dashboard.txt:/app/requirements-dashboard.txt

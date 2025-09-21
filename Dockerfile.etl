@@ -1,0 +1,21 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements-etl.txt .
+RUN pip install --no-cache-dir -r requirements-etl.txt
+
+# Copy source code
+COPY fetchData.py . 
+
+# Install cron and bash
+RUN apt-get update && apt-get install -y cron bash
+
+# Copy cron job
+COPY crontab /etc/cron.d/mta-etl-cron
+RUN chmod 0644 /etc/cron.d/mta-etl-cron
+RUN crontab /etc/cron.d/mta-etl-cron
+
+# Run cron in foreground
+CMD ["cron", "-f"]
