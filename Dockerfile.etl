@@ -9,6 +9,8 @@ RUN pip install --no-cache-dir -r requirements-etl.txt
 # Copy source code
 COPY fetchData.py . 
 
+RUN chmod +x /app/fetchData.py
+
 # Install cron and bash
 RUN apt-get update && apt-get install -y cron bash
 

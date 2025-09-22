@@ -1,1 +1,1 @@
-* * * * * root python /app/fetchData.py >> /var/log/etl.log 2>&1
+* * * * * /usr/local/bin/python /app/fetchData.py >> /var/log/etl.log 2>&1
