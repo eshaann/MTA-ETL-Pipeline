@@ -19,7 +19,7 @@ engine = create_engine(
 )
 
 st.set_page_config(page_title="MTA Realtime Dashboard", layout="wide")
-st.title("🚆 MTA Realtime Dashboard")
+st.title("🚆MTA Realtime Dashboard")
 st.markdown(
     "Simple ETL & analytics pipeline using GTFS-RT data in PostgreSQL."
 )
@@ -33,12 +33,13 @@ def fetch_data(query):
         return pd.DataFrame()
 
 
-st.subheader("🗺 Stop Locations and Activity (Update Counts with Color)")
+st.subheader("🗺 Orange Lines (B,D,F,M,S) Stop Locations and Activity In Last 24 Hours (Update Counts with Color)")
 
 stop_map_query = """
 SELECT s.stop_name, s.stop_lat, s.stop_lon, COUNT(*) AS num_updates
 FROM realtime_stop_updates rsu
 JOIN stops s ON rsu.stop_id = s.stop_id
+WHERE rsu.arrival_time >= NOW() - INTERVAL '24 hours'
 GROUP BY s.stop_name, s.stop_lat, s.stop_lon
 ORDER BY num_updates DESC
 LIMIT 100;
@@ -54,8 +55,8 @@ if not stop_map_df.empty:
         "ScatterplotLayer",
         data=stop_map_df,
         get_position=["stop_lon", "stop_lat"],
-        get_radius="num_updates * 5",  # bigger circle for more updates
-        get_fill_color="[color_scale, 0, 255 - color_scale, 80]",  # gradient from blue to red
+        get_radius="num_updates * 2",  # bigger circle for more updates
+        get_fill_color="[color_scale, 0, 255 - color_scale, 60]",  # gradient from blue to red
         pickable=True,
     )
 
@@ -111,11 +112,12 @@ else:
     st.info("No updates available yet.")
 
 # --- 2. Top Stops by Update Frequency ---
-st.subheader("Top 10 Stops by Update Frequency")
+st.subheader("Top 10 Stops by Update Frequency In Last 24 Hours")
 top_stops_query = """
 SELECT s.stop_name, COUNT(*) AS num_updates
 FROM realtime_stop_updates rsu
 LEFT JOIN stops s ON rsu.stop_id = s.stop_id
+WHERE rsu.arrival_time >= NOW() - INTERVAL '24 hours'
 GROUP BY s.stop_name
 ORDER BY num_updates DESC
 LIMIT 10;
@@ -126,7 +128,7 @@ st.table(top_stops_df)
 # --- 3. Updates Over Time ---
 st.subheader("Updates Over Time (Last Hour, 5-min buckets)")
 updates_over_time_query = """
-SELECT date_trunc('minute', rsu.timestamp) AS minute_bucket,
+SELECT date_trunc('minute', rsu.timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York') AS minute_bucket,
        COUNT(*) AS updates
 FROM realtime_stop_updates rsu
 WHERE rsu.timestamp > now() - interval '1 hour'
@@ -143,9 +145,12 @@ else:
 # --- 4. Latest Realtime Stop Updates ---
 st.subheader("Latest Stop Updates (Last 50)")
 latest_query = """
-SELECT rsu.trip_id, rsu.stop_id, s.stop_name, rsu.arrival_time, rsu.departure_time
+SELECT rsu.trip_id, rsu.stop_id, s.stop_name, 
+    rsu.arrival_time AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York' AS arrival_time_est,
+    rsu.departure_time AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York' AS departure_time_est
 FROM realtime_stop_updates rsu
 LEFT JOIN stops s ON rsu.stop_id = s.stop_id
+ORDER BY rsu.arrival_time DESC
 LIMIT 50;
 """
 latest_df = fetch_data(latest_query)
