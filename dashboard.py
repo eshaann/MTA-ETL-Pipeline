@@ -151,7 +151,7 @@ LIMIT 50;
 latest_df = fetch_data(latest_query)
 st.dataframe(latest_df)
 
-st.subheader("🚀 Active Trips in Last Hour")
+st.subheader("Active Trips in Last Hour")
 active_trips_query = """
 SELECT COUNT(DISTINCT trip_id) AS active_trips
 FROM realtime_stop_updates

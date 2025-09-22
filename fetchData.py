@@ -24,12 +24,14 @@ DB_CONFIG = {
 def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
 
-# --- Load static GTFS ---
+#Load static gtfs
 def load_static_gtfs():
     print("⬇️ Downloading static GTFS…")
     resp = requests.get(STATIC_URL)
     resp.raise_for_status()
 
+
+    # Extract and load individual CSV files
     with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
         with z.open("routes.txt") as f:
             load_routes_csv(f)
@@ -38,6 +40,9 @@ def load_static_gtfs():
         with z.open("trips.txt") as f:
             load_trips_csv(f)
 
+
+
+# Load routes CSV into database
 def load_routes_csv(f):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -52,6 +57,9 @@ def load_routes_csv(f):
     cur.close()
     conn.close()
 
+
+
+# Load stops CSV into database
 def load_stops_csv(f):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -66,6 +74,9 @@ def load_stops_csv(f):
     cur.close()
     conn.close()
 
+
+
+# Load trips CSV into database
 def load_trips_csv(f):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -98,7 +109,7 @@ def load_trips_csv(f):
     cur.close()
     conn.close()
 
-# --- Fetch GTFS-RT ---
+# Fetch GTFS real-time feed
 def fetch_realtime():
     resp = requests.get(REALTIME_URL)
     resp.raise_for_status()
@@ -106,7 +117,7 @@ def fetch_realtime():
     feed.ParseFromString(resp.content)
     return feed
 
-# --- Load realtime stop updates ---
+# Load real-time stop updates into database
 def load_realtime_stop_updates(feed):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -133,13 +144,12 @@ def load_realtime_stop_updates(feed):
     conn.close()
 
 
-# --- Main ---
 if __name__ == "__main__":
-    print("📥 Loading static GTFS into Postgres…")
+    print("Loading static GTFS into Postgres…")
     load_static_gtfs()
-    print("✅ Static GTFS loaded.")
+    print("Static GTFS loaded.")
 
-    print("📡 Fetching realtime GTFS-RT…")
+    print("Fetching realtime GTFS-RT…")
     feed = fetch_realtime()
     load_realtime_stop_updates(feed)
-    print("✅ Realtime updates loaded.")
+    print("Realtime updates loaded.")

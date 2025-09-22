@@ -5,8 +5,7 @@ from google.transit import gtfs_realtime_pb2
 feed = gtfs_realtime_pb2.FeedMessage()
 
 # Fetch the real-time feed
-headers = {"x-api-key": "YOUR_MTA_API_KEY"}  # Required for MTA API
-response = requests.get("https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm", headers=headers)
+response = requests.get("https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm")
 
 # Parse protobuf
 feed.ParseFromString(response.content)
