@@ -70,11 +70,29 @@ def load_trips_csv(f):
     cur = conn.cursor()
     reader = csv.DictReader(io.TextIOWrapper(f, "utf-8"))
     for row in reader:
+        # Convert start_date from YYYYMMDD string to YYYY-MM-DD format
+        start_date = None
+        if row.get("start_date"):
+            start_date = f"{row['start_date'][:4]}-{row['start_date'][4:6]}-{row['start_date'][6:]}"
+
+        # Handle start_time
+        start_time = row.get("start_time") if row.get("start_time") else None
+
+        # Handle schedule_relationship as integer (default to 0)
+        schedule_rel = int(row.get("schedule_relationship", 0))
+
         cur.execute("""
-            INSERT INTO trips (route_id, service_id, trip_id)
-            VALUES (%s, %s, %s)
+            INSERT INTO trips (trip_id, route_id, start_time, start_date, schedule_relationship)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (trip_id) DO NOTHING
-        """, (row["route_id"], row["service_id"], row["trip_id"]))
+        """, (
+            row["trip_id"],
+            row["route_id"],
+            start_time,
+            start_date,
+            schedule_rel
+        ))
+
     conn.commit()
     cur.close()
     conn.close()
@@ -113,32 +131,6 @@ def load_realtime_stop_updates(feed):
     cur.close()
     conn.close()
 
-# --- Load vehicle positions ---
-def load_vehicle_positions(feed):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    for entity in feed.entity:
-        if entity.HasField("vehicle"):
-            vehicle = entity.vehicle
-            vehicle_id = vehicle.vehicle.id
-            trip_id = vehicle.trip.trip_id if vehicle.trip else None
-            stop_id = vehicle.stop_id if vehicle.HasField("stop_id") else None
-            timestamp = datetime.fromtimestamp(vehicle.timestamp) if vehicle.HasField("timestamp") else datetime.now()
-            lat = vehicle.position.latitude if vehicle.HasField("position") else None
-            lon = vehicle.position.longitude if vehicle.HasField("position") else None
-            cur.execute("""
-                INSERT INTO vehicles (vehicle_id, trip_id, current_stop_id, latitude, longitude, timestamp)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (vehicle_id) DO UPDATE
-                SET trip_id = EXCLUDED.trip_id,
-                    current_stop_id = EXCLUDED.current_stop_id,
-                    latitude = EXCLUDED.latitude,
-                    longitude = EXCLUDED.longitude,
-                    timestamp = EXCLUDED.timestamp
-            """, (vehicle_id, trip_id, stop_id, lat, lon, timestamp))
-    conn.commit()
-    cur.close()
-    conn.close()
 
 # --- Main ---
 if __name__ == "__main__":
@@ -149,5 +141,4 @@ if __name__ == "__main__":
     print("📡 Fetching realtime GTFS-RT…")
     feed = fetch_realtime()
     load_realtime_stop_updates(feed)
-    load_vehicle_positions(feed)
     print("✅ Realtime updates loaded.")

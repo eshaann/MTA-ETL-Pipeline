@@ -32,6 +32,67 @@ def fetch_data(query):
         st.error(f"Error fetching data: {e}")
         return pd.DataFrame()
 
+
+st.subheader("🗺 Stop Locations and Activity (Update Counts with Color)")
+
+stop_map_query = """
+SELECT s.stop_name, s.stop_lat, s.stop_lon, COUNT(*) AS num_updates
+FROM realtime_stop_updates rsu
+JOIN stops s ON rsu.stop_id = s.stop_id
+GROUP BY s.stop_name, s.stop_lat, s.stop_lon
+ORDER BY num_updates DESC
+LIMIT 100;
+"""
+stop_map_df = fetch_data(stop_map_query)
+
+if not stop_map_df.empty:
+    # Normalize num_updates to 0-255 for color
+    max_updates = stop_map_df["num_updates"].max()
+    stop_map_df["color_scale"] = ((stop_map_df["num_updates"] / max_updates) * 255).astype(int)
+
+    layer = pdk.Layer(
+        "ScatterplotLayer",
+        data=stop_map_df,
+        get_position=["stop_lon", "stop_lat"],
+        get_radius="num_updates * 5",  # bigger circle for more updates
+        get_fill_color="[color_scale, 0, 255 - color_scale, 80]",  # gradient from blue to red
+        pickable=True,
+    )
+
+    view_state = pdk.ViewState(
+        latitude=stop_map_df["stop_lat"].mean(),
+        longitude=stop_map_df["stop_lon"].mean(),
+        zoom=11,
+        pitch=0
+    )
+
+    r = pdk.Deck(
+        layers=[layer],
+        initial_view_state=view_state,
+        tooltip={"text": "{stop_name}\nUpdates: {num_updates}"}
+    )
+
+    st.pydeck_chart(r)
+else:
+    st.info("No stop location data available yet.")
+
+
+st.subheader("Trips per Route")
+trips_per_route_query = """
+SELECT r.route_long_name, COUNT(*) AS num_trips
+FROM trips t
+JOIN routes r ON t.route_id = r.route_id
+GROUP BY r.route_long_name
+ORDER BY num_trips DESC;
+"""
+trips_per_route_df = fetch_data(trips_per_route_query)
+
+if not trips_per_route_df.empty:
+    st.bar_chart(trips_per_route_df.set_index("route_long_name"))
+else:
+    st.info("No trip data available yet.")
+
+
 # --- 1. Updates per Route ---
 st.subheader("📊 Updates per Trip (Top 20)")
 
@@ -82,74 +143,49 @@ else:
 # --- 4. Latest Realtime Stop Updates ---
 st.subheader("Latest Stop Updates (Last 50)")
 latest_query = """
-SELECT rsu.trip_id, rsu.stop_id, s.stop_name, rsu.arrival_time, rsu.departure_time, rsu.timestamp
+SELECT rsu.trip_id, rsu.stop_id, s.stop_name, rsu.arrival_time, rsu.departure_time
 FROM realtime_stop_updates rsu
 LEFT JOIN stops s ON rsu.stop_id = s.stop_id
-ORDER BY rsu.timestamp DESC
 LIMIT 50;
 """
 latest_df = fetch_data(latest_query)
 st.dataframe(latest_df)
 
+st.subheader("🚀 Active Trips in Last Hour")
+active_trips_query = """
+SELECT COUNT(DISTINCT trip_id) AS active_trips
+FROM realtime_stop_updates
+WHERE timestamp > now() - interval '1 hour';
+"""
+active_trips_df = fetch_data(active_trips_query)
+st.metric("Active Trips (Last Hour)", int(active_trips_df["active_trips"].iloc[0]) if not active_trips_df.empty else 0)
 
-st.subheader("🗺 Stop Locations and Activity (Update Counts with Color)")
 
-stop_map_query = """
-SELECT s.stop_name, s.stop_lat, s.stop_lon, COUNT(*) AS num_updates
+st.subheader("📊 Average Updates per Stop")
+avg_updates_query = """
+SELECT s.stop_name, COUNT(*)::float / (SELECT COUNT(DISTINCT trip_id) FROM realtime_stop_updates) AS avg_updates
 FROM realtime_stop_updates rsu
 JOIN stops s ON rsu.stop_id = s.stop_id
-GROUP BY s.stop_name, s.stop_lat, s.stop_lon
-ORDER BY num_updates DESC
-LIMIT 100;
+GROUP BY s.stop_name
+ORDER BY avg_updates DESC
+LIMIT 10;
 """
-stop_map_df = fetch_data(stop_map_query)
-
-if not stop_map_df.empty:
-    # Normalize num_updates to 0-255 for color
-    max_updates = stop_map_df["num_updates"].max()
-    stop_map_df["color_scale"] = ((stop_map_df["num_updates"] / max_updates) * 255).astype(int)
-
-    layer = pdk.Layer(
-        "ScatterplotLayer",
-        data=stop_map_df,
-        get_position=["stop_lon", "stop_lat"],
-        get_radius="num_updates * 5",  # bigger circle for more updates
-        get_fill_color="[color_scale, 0, 255 - color_scale, 80]",  # gradient from blue to red
-        pickable=True,
-    )
-
-    view_state = pdk.ViewState(
-        latitude=stop_map_df["stop_lat"].mean(),
-        longitude=stop_map_df["stop_lon"].mean(),
-        zoom=11,
-        pitch=0
-    )
-
-    r = pdk.Deck(
-        layers=[layer],
-        initial_view_state=view_state,
-        tooltip={"text": "{stop_name}\nUpdates: {num_updates}"}
-    )
-
-    st.pydeck_chart(r)
-else:
-    st.info("No stop location data available yet.")
+avg_updates_df = fetch_data(avg_updates_query)
+st.bar_chart(avg_updates_df.set_index("stop_name"))
 
 
-
-st.subheader("🛑 Trips with Most Stops")
-stops_per_trip_query = """
-SELECT trip_id, COUNT(DISTINCT stop_id) AS num_stops
-FROM realtime_stop_updates
-GROUP BY trip_id
-ORDER BY num_stops DESC
-LIMIT 20;
+st.subheader("⚠ Stops with No Updates in Last Hour")
+no_updates_query = """
+SELECT s.stop_name
+FROM stops s
+LEFT JOIN realtime_stop_updates rsu 
+  ON s.stop_id = rsu.stop_id 
+  AND rsu.timestamp > now() - interval '1 hour'
+WHERE rsu.stop_id IS NULL
+LIMIT 10;
 """
-stops_per_trip_df = fetch_data(stops_per_trip_query)
-if not stops_per_trip_df.empty:
-    st.bar_chart(stops_per_trip_df.set_index("trip_id"))
-else:
-    st.info("No stop data available yet.")
+no_updates_df = fetch_data(no_updates_query)
+st.table(no_updates_df)
 
 
 
