@@ -137,16 +137,20 @@ else:
 
 
 
-st.subheader("🚍 Active Trips by Service Type")
-active_trips_query = """
-SELECT t.service_id, COUNT(DISTINCT rsu.trip_id) AS active_trips
-FROM realtime_stop_updates rsu
-JOIN trips t ON rsu.trip_id = t.trip_id
-GROUP BY t.service_id
-ORDER BY active_trips DESC;
+st.subheader("🛑 Trips with Most Stops")
+stops_per_trip_query = """
+SELECT trip_id, COUNT(DISTINCT stop_id) AS num_stops
+FROM realtime_stop_updates
+GROUP BY trip_id
+ORDER BY num_stops DESC
+LIMIT 20;
 """
-active_trips_df = fetch_data(active_trips_query)
-st.bar_chart(active_trips_df.set_index("service_id"))
+stops_per_trip_df = fetch_data(stops_per_trip_query)
+if not stops_per_trip_df.empty:
+    st.bar_chart(stops_per_trip_df.set_index("trip_id"))
+else:
+    st.info("No stop data available yet.")
+
 
 
 
